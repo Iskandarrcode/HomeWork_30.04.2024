@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
-import 'package:may30/controllers/todo_controllers.dart';
-import 'package:may30/views/widgets/add_todo_show_dialog.dart';
-import 'package:may30/views/widgets/edit_todo_show_dialog.dart';
-import 'package:may30/views/widgets/todo_item.dart';
+import 'package:may30/models/todo_models.dart';
+import 'package:may30/view_models/todo_view_model.dart';
+import 'package:may30/views/widgets/todo_menage.dart';
+import 'package:may30/views/widgets/todo_widget.dart';
 
 class TodoScreen extends StatefulWidget {
   const TodoScreen({super.key});
@@ -12,77 +12,119 @@ class TodoScreen extends StatefulWidget {
 }
 
 class _TodoScreenState extends State<TodoScreen> {
-  final todoController = TodoController();
+  final TodoViewModel _todoViewModel = TodoViewModel();
+
+  void onAddPressed() async {
+    final Map<String, dynamic> data = await showDialog(
+      context: context,
+      builder: (BuildContext context) => const ManageTodoDialog(
+        isEdit: false,
+      ),
+    );
+    if (data.isNotEmpty) {
+      _todoViewModel.addTodo(
+        todoTitle: data['todoTitle'],
+        todoDescription: data['todoDescription'],
+      );
+      setState(() {});
+    }
+  }
+
+  void onTogglePressed(List<Todo> todos, int index) {
+    _todoViewModel.toggleTodo(
+      todoId: todos[index].todoId,
+      todoStatus: !todos[index].isDone,
+    );
+    setState(() {});
+  }
+
+  void onEditPressed(Todo todo) async {
+    final Map<String, dynamic> data = await showDialog(
+      context: context,
+      builder: (BuildContext context) => ManageTodoDialog(
+        todo: todo,
+        isEdit: true,
+      ),
+    );
+    if (data.isNotEmpty) {
+      _todoViewModel.editTodo(
+        todoId: todo.todoId,
+        newTodoTitle: data['todoTitle'],
+        newTodoDescription: data['todoDescription'],
+      );
+      setState(() {});
+    }
+  }
+
+  void onDeletePressed({required String todoId}) {
+    _todoViewModel.deleteProduct(todoId: todoId);
+    setState(() {});
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        backgroundColor: Colors.blue,
-        title: const Center(
-          child: Text("ToDo App"),
+        backgroundColor: Color.fromARGB(179, 12, 32, 131),
+        title: const Text(
+          'Todo',
+          style: TextStyle(
+            color: Colors.white,
+            fontWeight: FontWeight.w700,
+          ),
         ),
+        centerTitle: false,
         actions: [
-          IconButton(
-            onPressed: () {
-              showDialog(
-                  context: context,
-                  builder: (ctx) {
-                    return const AddTodo();
-                  });
-            },
-            icon: const Icon(Icons.add),
-            iconSize: 25,
+          Padding(
+            padding: const EdgeInsets.only(right: 10),
+            child: IconButton(
+              onPressed: onAddPressed,
+              icon: const Icon(Icons.add),
+            ),
           ),
         ],
       ),
       body: Padding(
-        padding: const EdgeInsets.all(20),
-        child: Column(
-          children: [
-            Expanded(
-              child: ListView.builder(
-                itemCount: todoController.list.length,
-                itemBuilder: (context, index) {
-                  return TodoItem(
-                    title: todoController.list[index].title,
-                    dates: todoController.list[index].dates,
-                    onDelete: () {
-                      todoController.todoRemove(index);
-                      setState(() {});
-                    },
-                    // onEdit: () {
-                    //   showDialog(
-                    //       context: context,
-                    //       builder: (ctx) {
-                    //         return EditTodo(
-                    //           index: index,
-                    //         );
-                    //       });
-                    //   setState(() {});
-                    // },
-                    onEdit: () async {
-                      Map<String, dynamic>? data = await showDialog(
-                          context: context,
-                          builder: (ctx) {
-                            return EditTodo(
-                              index: index,
-                            );
-                          });
-
-                      if (data != null) {
-                        todoController.todoEdit(
-                          index,
-                          data["id"],
-                          data["title"],
-                        );
-                        setState(() {}); // Ensure the screen updates
-                      }
+        padding: const EdgeInsets.symmetric(horizontal: 15),
+        child: FutureBuilder(
+        
+          future: _todoViewModel.todoList,
+          builder: (BuildContext context, AsyncSnapshot snapshot) {
+            if (snapshot.connectionState == ConnectionState.waiting) {
+              return const Center(child: CircularProgressIndicator());
+            } else if (snapshot.hasError) {
+              return Center(
+                child: Text(snapshot.error.toString()),
+              );
+            } else if (!snapshot.hasData) {
+              return const Center(
+                child: Text('Add notes'),
+              );
+            }
+            final List<Todo> todos = snapshot.data;
+            return todos.isEmpty
+                ? const Center(
+                    child: Text('Add notes'),
+                  )
+                : ListView.builder(
+                    itemCount: todos.length,
+                    itemBuilder: (context, index) {
+                      return TodosWidget(
+                        onTogglePressed: () {
+                          onTogglePressed(todos, index);
+                        },
+                        onDeletePressed: () {
+                          onDeletePressed(todoId: todos[index].todoId);
+                        },
+                        onEditPressed: () {
+                          onEditPressed(todos[index]);
+                        },
+                        todos: todos,
+                        index: index,
+                      );
                     },
                   );
-                },
-              ),
-            )
-          ],
+          },
         ),
       ),
     );
